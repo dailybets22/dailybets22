@@ -1,4 +1,4 @@
-// src/app/api/subscribe/route.js
+// FIXED API ROUTE PATH - 2025
 import { NextResponse } from 'next/server';
 
 const BEEHIIV_API_KEY = process.env.BEEHIIV_API_KEY;
