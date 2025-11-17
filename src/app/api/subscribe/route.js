@@ -17,7 +17,7 @@ export async function POST(request) {
 
     const sportsString = (Array.isArray(sports) && sports.length > 0) ? sports.join(',') : '';
 
-    payload = {
+    const payload = {
       email: email,  // Use the provided email value
       custom_fields: [
         { name: 'name', value: name || '' },  // Places name in custom_fields
