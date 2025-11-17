@@ -15,6 +15,18 @@ export async function POST(request) {
       );
     }
 
+    const sportsString = (Array.isArray(sports) && sports.length > 0) ? sports.join(',') : '';
+
+    payload = {
+      email: email,  // Use the provided email value
+      custom_fields: [
+        { name: 'name', value: name || '' },  // Places name in custom_fields
+        { name: 'today_picks', value: 'test' },  // Test value as specified
+        { name: 'selected_sports', value: sportsString }  // Converts sports array to comma-separated string
+      ],
+      send_welcome_email: true,
+      reactivate_if_unsubscribed: true};
+
     const res = await fetch(
       `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions`,
       {
@@ -22,25 +34,19 @@ export async function POST(request) {
         headers: {
           'Authorization': `Bearer ${BEEHIIV_API_KEY}`,
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
         },
-        body: JSON.stringify({
-          email,
-          name: name || null,
-          reactivate_if_unsubscribed: true,
-          send_welcome_email: true,
-          tags: sports,
-        }),
+        body: JSON.stringify(payload),
       }
     );
 
     if (res.ok) {
       return NextResponse.json({ success: true });
     } else {
-      const error = await res.json();
+      const errorText = await res.text();
+      console.error('Beehiiv API Error:', res.status, errorText);
       return NextResponse.json(
-        { error: error.message || 'Beehiiv error' },
-        { status: 400 }
+        { error: errorText || 'Error while subscribing' },
+        { status: res.status }
       );
     }
   } catch (err) {
