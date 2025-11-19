@@ -105,7 +105,7 @@ async function fetchRealPicks() {
               if (probability <= '45%') category = 'high-risk';
 
               allPicks.push({
-                sport: sportKey.includes('nba') ? 'NBA' : 'NHL',
+                sport: sportKey.includes('nba') ? 'nba' : 'nhl',
                 game: `${away} @ ${home}`,
                 pick,
                 odds,
