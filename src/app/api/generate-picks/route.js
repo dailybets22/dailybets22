@@ -111,7 +111,7 @@ async function fetchAllBeehiivSubscribers() {
   let page = 1;
 
   while (true) {
-    const url = `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions?page=${page}&limit=100&expand[]=custom_fields`;
+    const url = `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions?page=${page}&limit=100&expand=custom_fields`;
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${BEEHIIV_API_KEY}` }
     });
