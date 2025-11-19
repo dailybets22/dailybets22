@@ -112,8 +112,8 @@ export async function GET() {
     console.log(`Processing ${sub.email} with sports: ${userSports.join(', ')}`);
 
     const userPicks = globalPicks
-      .filter(p => userSports.includes(p.sport.toLowerCase()) || userSports.includes(p.sport === 'NBA' ? 'nba' : 'nhl'))
-      .sort((a, b) => parseFloat(b.probability) - parseFloat(a.probability));
+  .filter(p => userSports.includes(p.sport.toLowerCase())) 
+  .sort((a, b) => parseFloat(b.probability) - parseFloat(a.probability));
 
     if (userPicks.length < 5) {
       console.log(`Skipping ${sub.email} — only ${userPicks.length} picks available`);
