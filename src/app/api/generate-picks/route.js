@@ -69,36 +69,38 @@ export async function GET() {
     ];
 
     const html = renderEmailHtml(final10, sub.name || 'Friend');
+    // ADD THIS LINE TO SEE THE HTML
+console.log(`HTML for ${sub.email} → ${html.length} chars | Starts with: ${html.substring(0, 150).replace(/\n/g, ' ')}...`);
 
-    try {
-  const res = await fetch(
+try {
+  const response = await fetch(
     `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`,
     {
-      method: 'PUT',  // ← MUST BE PUT, NOT PATCH
+      method: "PUT",  // ← MUST be PUT
       headers: {
         Authorization: `Bearer ${BEEHIIV_API_KEY}`,
-        'Content-Type': 'application/json'
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         custom_fields: [
           {
-            name: 'today_picks_html',   // ← name, not key
+            name: "today_picks_html",   // ← exact name from Beehiiv (case-sensitive)
             value: html
           }
         ]
-      })
+      }),
     }
   );
 
-  if (res.ok) {
+  if (response.ok) {
     updated++;
-    console.log(`SUCCESS: Updated ${sub.email} with today_picks_html`);
+    console.log(`SUCCESS → ${sub.email} updated with today_picks_html`);
   } else {
-    const err = await res.text();
-    console.log(`FAILED ${sub.email}: ${res.status} → ${err}`);
+    const errorBody = await response.text();
+    console.log(`FAILED → ${sub.email} | ${response.status} | ${errorBody}`);
   }
 } catch (e) {
-  console.log(`EXCEPTION ${sub.email}: ${e.message}`);
+  console.log(`EXCEPTION → ${sub.email} | ${e.message}`);
 }
   }
 
