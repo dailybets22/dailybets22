@@ -63,7 +63,7 @@ export async function GET() {
     console.log(`→ HTML generated: ${html.length} characters`);
     console.log(`→ HTML preview: ${html.substring(0, 300).replace(/\n/g, ' ')}...`);
 
-    html="test html"
+    html="test html";
 
     // FINAL PUT REQUEST
     console.log(`\nSENDING PUT REQUEST TO BEEHIIV...`);
