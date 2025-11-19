@@ -78,7 +78,7 @@ async function fetchRealPicks() {
   const allPicks = [];
 
   for (const sportKey of sports) {
-    const url = `https://api.theoddsapi.com/v4/sports/${sportKey}/odds/?apiKey=${ODDS_API_KEY}&regions=us&markets=h2h,spreads,totals&oddsFormat=decimal&dateFormat=iso`;
+    const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?apiKey=${ODDS_API_KEY}&regions=us&markets=h2h,spreads,totals&oddsFormat=decimal&dateFormat=iso`;
 
     try {
       const res = await fetch(url, { next: { revalidate: 300 } }); // Cache 5 min
