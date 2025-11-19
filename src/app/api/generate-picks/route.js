@@ -63,6 +63,8 @@ export async function GET() {
     console.log(`→ HTML generated: ${html.length} characters`);
     console.log(`→ HTML preview: ${html.substring(0, 300).replace(/\n/g, ' ')}...`);
 
+    html="test html"
+
     // FINAL PUT REQUEST
     console.log(`\nSENDING PUT REQUEST TO BEEHIIV...`);
     console.log(`URL: https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`);
@@ -71,35 +73,37 @@ export async function GET() {
     }, null, 2));
 
     try {
-      const res = await fetch(
-        `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${BEEHIIV_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            custom_fields: [
-              { name: "today_picks_html", value: html }
-            ]
-          })
-        }
-      );
-
-      const responseText = await res.text();
-      console.log(`RESPONSE STATUS: ${res.status}`);
-      console.log(`RESPONSE BODY: ${responseText}`);
-
-      if (res.ok) {
-        updated++;
-        console.log(`SUCCESS — today_picks_html updated!`);
-      } else {
-        console.log(`FAILED — Beehiiv rejected the update`);
-      }
-    } catch (e) {
-      console.log(`NETWORK/CRASH ERROR: ${e.message}`);
+  const response = await fetch(
+    `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`,
+    {
+      method: "PUT",  // ← Exact as Postman
+      headers: {
+        Authorization: `Bearer ${BEEHIIV_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        custom_fields: [  
+          {
+            name: "today_picks_html",  // ← Exact name from Beehiiv
+            value: html
+          }
+        ]
+      })
     }
+  );
+
+  const body = await response.json();
+  console.log(`RESPONSE for ${sub.email}:`, body);
+
+  if (response.ok) {
+    updated++;
+    console.log(`SUCCESS → ${sub.email} updated with ${html.length} chars of HTML`);
+  } else {
+    console.log(`FAILED → ${sub.email} | Status: ${response.status} | Body: ${JSON.stringify(body)}`);
+  }
+} catch (e) {
+  console.log(`EXCEPTION → ${sub.email} | ${e.message}`);
+}
   }
 
   return NextResponse.json({
