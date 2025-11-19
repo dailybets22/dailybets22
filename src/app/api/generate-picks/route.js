@@ -103,9 +103,7 @@ export async function GET() {
 
   let updatedCount = 0;
   for (const sub of subscribers) {
-    const userSports = sub.custom_fields?.selected_sports
-      ?.split(',')
-      .map(s => s.trim()) || [];
+    const userSports = sub.custom_fields?.selected_sports?.split(',').map(s => s.trim().toUpperCase()) || [];
 
     if (userSports.length === 0) continue;
 
