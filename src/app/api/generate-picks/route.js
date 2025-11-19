@@ -71,29 +71,33 @@ export async function GET() {
     const html = renderEmailHtml(final10, sub.name || 'Friend');
 
     try {
-      const res = await fetch(
-        `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`,
-        {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${BEEHIIV_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            custom_fields: { today_picks_html: html }
-          })
+  const res = await fetch(
+    `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${BEEHIIV_API_KEY}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        custom_fields: {
+          today_picks_html: html
         }
-      );
-
-      if (res.ok) {
-        updated++;
-        console.log(`UPDATED ${sub.email}`);
-      } else {
-        console.log(`ERROR updating ${sub.email}: ${await res.text()}`);
-      }
-    } catch (e) {
-      console.log(`NETWORK ERROR for ${sub.email}: ${e.message}`);
+      })
     }
+  );
+
+  if (res.ok) {
+    updated++;
+    console.log(`UPDATED ${sub.email} — today_picks_html saved`);
+  } else {
+    const errorText = await res.text();
+    console.log(`PATCH FAILED for ${sub.email}: ${res.status} — ${errorText}`);
+  }
+} catch (e) {
+  console.log(`EXCEPTION for ${sub.email}: ${e.message}`);
+}
   }
 
   return NextResponse.json({
