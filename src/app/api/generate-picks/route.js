@@ -22,89 +22,75 @@ export async function GET() {
   let updated = 0;
 
   for (const sub of subscribers) {
-    console.log(`\nPROCESSING: ${sub.email} | ID: ${sub.id} | Status: ${sub.status}`);
+  console.log(`\nProcessing: ${sub.email} | Status: ${sub.status}`);
 
-    if (sub.status !== 'active') {
-      console.log('→ Skipped (not active)');
-      continue;
-    }
+  if (sub.status !== 'active') continue;
 
-    // Extract selected_sports
-    let selectedSportsValue = '';
-    if (Array.isArray(sub.custom_fields)) {
-      const field = sub.custom_fields.find(f => f.key === 'selected_sports');
-      selectedSportsValue = field?.value || '';
-    }
-    console.log(`→ selected_sports raw value: "${selectedSportsValue}"`);
-
-    const userSports = selectedSportsValue.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-    console.log(`→ Parsed sports: [${userSports.join(', ')}]`);
-
-    if (userSports.length === 0) {
-      console.log('→ No sports → skipping');
-      continue;
-    }
-
-    const userPicks = globalPicks.filter(p => userSports.includes(p.sport.toLowerCase()));
-    console.log(`→ Found ${userPicks.length} picks for user`);
-
-    if (userPicks.length < 2) {
-      console.log('→ Not enough picks → skipping');
-      continue;
-    }
-
-    const final10 = [
-      ...userPicks.filter(p => p.category === 'safe').slice(0, 5),
-      ...userPicks.filter(p => p.category === 'medium').slice(0, 2),
-      createParlay(userPicks)
-    ];
-
-   // const html = renderEmailHtml(final10, sub.name || 'Friend');
-   // console.log(`→ HTML generated: ${html.length} characters`);
-   // console.log(`→ HTML preview: ${html.substring(0, 300).replace(/\n/g, ' ')}...`);
-
-    const html="test html";
-
-    // FINAL PUT REQUEST
-    console.log(`\nSENDING PUT REQUEST TO BEEHIIV...`);
-    console.log(`URL: https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`);
-    console.log(`Body:`, JSON.stringify({
-      custom_fields: [{ name: "today_picks_html", value: html }]
-    }, null, 2));
-
-    try {
-  const response = await fetch(
-    `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`,
-    {
-      method: "PUT",  // ← Exact as Postman
-      headers: {
-        Authorization: `Bearer ${BEEHIIV_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        custom_fields: [  
-          {
-            name: "today_picks_html",  // ← Exact name from Beehiiv
-            value: html
-          }
-        ]
-      })
-    }
-  );
-
-  const body = await response.json();
-  console.log(`RESPONSE for ${sub.email}:`, body);
-
-  if (response.ok) {
-    updated++;
-    console.log(`SUCCESS → ${sub.email} updated with ${html.length} chars of HTML`);
-  } else {
-    console.log(`FAILED → ${sub.email} | Status: ${response.status} | Body: ${JSON.stringify(body)}`);
+  // CORRECT WAY — Beehiiv uses "name", not "key"
+  let selectedSportsValue = '';
+  if (Array.isArray(sub.custom_fields)) {
+    const field = sub.custom_fields.find(f => f.name === 'selected_sports');
+    selectedSportsValue = field?.value || '';
   }
-} catch (e) {
-  console.log(`EXCEPTION → ${sub.email} | ${e.message}`);
+  console.log(`selected_sports = "${selectedSportsValue}"`);
+
+  const userSports = selectedSportsValue
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (userSports.length === 0) {
+    console.log('No sports selected → skipping');
+    continue;
+  }
+
+  const userPicks = globalPicks.filter(p => userSports.includes(p.sport.toLowerCase()));
+  if (userPicks.length === 0) {
+    console.log('No picks match → skipping');
+    continue;
+  }
+
+  const final10 = [
+    ...userPicks.filter(p => p.category === 'safe').slice(0, 5),
+    ...userPicks.filter(p => p.category === 'medium').slice(0, 3),
+    ...userPicks.filter(p => p.category === 'high-risk').slice(0, 2),
+    createParlay(userPicks)
+  ];
+
+  const html = renderEmailHtml(final10, sub.name || 'Friend');
+
+  // EXACT POSTMAN-MATCHED PUT REQUEST
+  try {
+    const res = await fetch(
+      `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${BEEHIIV_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          custom_fields: [
+            {
+              name: "today_picks_html",
+              value: html
+            }
+          ]
+        })
+      }
+    );
+
+    if (res.ok) {
+      updated++;
+      console.log(`SUCCESS → ${sub.email} updated!`);
+    } else {
+      const err = await res.text();
+      console.log(`FAILED → ${sub.email} | ${res.status} | ${err}`);
+    }
+  } catch (e) {
+    console.log(`EXCEPTION → ${e.message}`);
+  }
 }
-  }
 
   return NextResponse.json({
     success: true,
