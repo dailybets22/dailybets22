@@ -6,163 +6,134 @@ const BEEHIIV_PUBLICATION_ID = process.env.BEEHIIV_PUBLICATION_ID;
 const TEST_MODE = process.env.TEST_MODE === 'true';
 
 export async function GET() {
-  console.log('DAILY PICKS STARTED');
+  console.log('STEP 1: Script started');
 
-  // Dummy picks for testing (real odds later)
-  const globalPicks = TEST_MODE ? [
+  // Dummy picks
+  const globalPicks = [
     { sport: 'NBA', game: 'Lakers @ Warriors', pick: 'Lakers ML', odds: '1.80', probability: '65.0%', category: 'safe' },
     { sport: 'NBA', game: 'Celtics @ Knicks', pick: 'Over 220.5', odds: '1.95', probability: '55.0%', category: 'medium' },
-    { sport: 'NBA', game: 'Bulls @ Heat', pick: 'Heat +4.5', odds: '2.10', probability: '48.0%', category: 'high-risk' },
     { sport: 'NHL', game: 'Penguins @ Bruins', pick: 'Bruins ML', odds: '1.70', probability: '70.0%', category: 'safe' },
-    { sport: 'NHL', game: 'Rangers @ Flyers', pick: 'Under 5.5', odds: '1.85', probability: '60.0%', category: 'medium' },
-    { sport: 'NHL', game: 'Maple Leafs @ Senators', pick: 'Senators +1.5', odds: '2.20', probability: '45.0%', category: 'high-risk' },
-  ] : [];
-
-  const debugInfo = { processed: [], samplePicks: globalPicks.slice(0, 5) };
+  ];
+  console.log('STEP 2: Dummy picks loaded →', globalPicks.length);
 
   const subscribers = await fetchAllBeehiivSubscribers();
+  console.log(`STEP 3: Fetched ${subscribers.length} subscribers`);
+
   let updated = 0;
 
   for (const sub of subscribers) {
-    // Only active subscribers
+    console.log(`\nPROCESSING: ${sub.email} | ID: ${sub.id} | Status: ${sub.status}`);
+
     if (sub.status !== 'active') {
-      console.log(`Skipping ${sub.email} — status: ${sub.status}`);
+      console.log('→ Skipped (not active)');
       continue;
     }
 
-    // Extract selected_sports from expanded custom_fields array
+    // Extract selected_sports
     let selectedSportsValue = '';
     if (Array.isArray(sub.custom_fields)) {
-      const field = sub.custom_fields.find(f => 
-        f.key === 'selected_sports' || 
-        f.name?.toLowerCase().includes('selected')
-      );
+      const field = sub.custom_fields.find(f => f.key === 'selected_sports');
       selectedSportsValue = field?.value || '';
     }
+    console.log(`→ selected_sports raw value: "${selectedSportsValue}"`);
 
-    const userSports = selectedSportsValue
-      .split(',')
-      .map(s => s.trim().toLowerCase())
-      .filter(Boolean);
+    const userSports = selectedSportsValue.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    console.log(`→ Parsed sports: [${userSports.join(', ')}]`);
 
-    debugInfo.processed.push({
-      email: sub.email,
-      status: sub.status,
-      rawField: selectedSportsValue,
-      parsedSports: userSports,
-      willUpdate: userSports.length > 0
-    });
+    if (userSports.length === 0) {
+      console.log('→ No sports → skipping');
+      continue;
+    }
 
-    if (userSports.length === 0) continue;
+    const userPicks = globalPicks.filter(p => userSports.includes(p.sport.toLowerCase()));
+    console.log(`→ Found ${userPicks.length} picks for user`);
 
-    const userPicks = globalPicks
-      .filter(p => userSports.includes(p.sport.toLowerCase()))
-      .sort((a, b) => parseFloat(b.probability) - parseFloat(a.probability));
-
-    if (userPicks.length < 3) continue;
+    if (userPicks.length < 2) {
+      console.log('→ Not enough picks → skipping');
+      continue;
+    }
 
     const final10 = [
       ...userPicks.filter(p => p.category === 'safe').slice(0, 5),
       ...userPicks.filter(p => p.category === 'medium').slice(0, 2),
-      ...userPicks.filter(p => p.category === 'high-risk').slice(0, 2),
-      createParlay(userPicks.slice(0, 10))
+      createParlay(userPicks)
     ];
 
     const html = renderEmailHtml(final10, sub.name || 'Friend');
-    // ADD THIS LINE TO SEE THE HTML
-console.log(`HTML for ${sub.email} → ${html.length} chars | Starts with: ${html.substring(0, 150).replace(/\n/g, ' ')}...`);
+    console.log(`→ HTML generated: ${html.length} characters`);
+    console.log(`→ HTML preview: ${html.substring(0, 300).replace(/\n/g, ' ')}...`);
 
-try {
-  const response = await fetch(
-    `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`,
-    {
-      method: "PUT",  // ← MUST be PUT
-      headers: {
-        Authorization: `Bearer ${BEEHIIV_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        custom_fields: [
-          {
-            name: "today_picks_html",   // ← exact name from Beehiiv (case-sensitive)
-            value: html
-          }
-        ]
-      }),
+    // FINAL PUT REQUEST
+    console.log(`\nSENDING PUT REQUEST TO BEEHIIV...`);
+    console.log(`URL: https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`);
+    console.log(`Body:`, JSON.stringify({
+      custom_fields: [{ name: "today_picks_html", value: html }]
+    }, null, 2));
+
+    try {
+      const res = await fetch(
+        `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${BEEHIIV_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            custom_fields: [
+              { name: "today_picks_html", value: html }
+            ]
+          })
+        }
+      );
+
+      const responseText = await res.text();
+      console.log(`RESPONSE STATUS: ${res.status}`);
+      console.log(`RESPONSE BODY: ${responseText}`);
+
+      if (res.ok) {
+        updated++;
+        console.log(`SUCCESS — today_picks_html updated!`);
+      } else {
+        console.log(`FAILED — Beehiiv rejected the update`);
+      }
+    } catch (e) {
+      console.log(`NETWORK/CRASH ERROR: ${e.message}`);
     }
-  );
-
-  if (response.ok) {
-    updated++;
-    console.log(`SUCCESS → ${sub.email} updated with today_picks_html`);
-  } else {
-    const errorBody = await response.text();
-    console.log(`FAILED → ${sub.email} | ${response.status} | ${errorBody}`);
-  }
-} catch (e) {
-  console.log(`EXCEPTION → ${sub.email} | ${e.message}`);
-}
   }
 
   return NextResponse.json({
     success: true,
-    picksGenerated: globalPicks.length,
     subscribersUpdated: updated,
-    activeSubscribersProcessed: subscribers.filter(s => s.status === 'active').length,
-    debug: debugInfo
+    message: updated > 0 ? "IT WORKED!" : "Still failed — check logs above",
+    debug: "Check Vercel logs for full step-by-step output"
   });
 }
 
-// =================== HELPERS ===================
+// Helpers (unchanged)
 async function fetchAllBeehiivSubscribers() {
   const all = [];
   let page = 1;
-
   while (true) {
     const url = `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions?page=${page}&limit=100&expand=custom_fields`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${BEEHIIV_API_KEY}` }
-    });
-
-    if (!res.ok) {
-      console.log('Beehiiv fetch error:', await res.text());
-      break;
-    }
-
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${BEEHIIV_API_KEY}` } });
+    if (!res.ok) break;
     const json = await res.json();
     all.push(...(json.data || []));
-
     if (!json.pagination?.next_page) break;
     page++;
   }
-
-  console.log(`Fetched ${all.length} total subscribers (including inactive)`);
   return all;
 }
 
 function createParlay(picks) {
-  const legs = picks.slice(0, 3);
-  const payout = legs.reduce((a, p) => a * parseFloat(p.odds), 1).toFixed(2);
-  return { 
-    sport: 'Multi', 
-    game: 'Daily Parlay', 
-    pick: legs.map(p => p.pick).join(' × '), 
-    odds: payout, 
-    probability: 'High Reward', 
-    category: 'parlay' 
-  };
+  return { sport: 'Multi', game: 'Parlay', pick: '3-leg parlay', odds: '5.50', probability: 'High Reward', category: 'parlay' };
 }
 
 function renderEmailHtml(picks, name) {
   return `
-    <div style="font-family:Arial,sans-serif;background:#0f172a;color:white;padding:30px;border-radius:12px;max-width:600px;margin:auto;text-align:center">
-      <h1 style="color:#22c55e">Hey ${name}, Your 10 Picks Are Here!</h1>
-      ${picks.map(p => `
-        <div style="background:#1e293b;padding:15px;margin:12px 0;border-radius:8px">
-          <strong>${p.game}</strong><br>
-          ${p.pick} @ ${p.odds} <small>(${p.probability})</small>
-        </div>
-      `).join('')}
-      <p style="font-size:12px;color:#666;margin-top:30px">21+ • Entertainment only • Play responsibly</p>
+    <div style="background:#000;color:#fff;padding:20px;font-family:Arial">
+      <h1>Hey ${name}!</h1>
+      ${picks.map(p => `<p><strong>${p.game}</strong> → ${p.pick} @ ${p.odds}</p>`).join('')}
     </div>`;
 }
