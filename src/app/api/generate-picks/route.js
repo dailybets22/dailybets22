@@ -59,11 +59,11 @@ export async function GET() {
       createParlay(userPicks)
     ];
 
-    const html = renderEmailHtml(final10, sub.name || 'Friend');
-    console.log(`→ HTML generated: ${html.length} characters`);
-    console.log(`→ HTML preview: ${html.substring(0, 300).replace(/\n/g, ' ')}...`);
+   // const html = renderEmailHtml(final10, sub.name || 'Friend');
+   // console.log(`→ HTML generated: ${html.length} characters`);
+   // console.log(`→ HTML preview: ${html.substring(0, 300).replace(/\n/g, ' ')}...`);
 
-    html="test html";
+    const html="test html";
 
     // FINAL PUT REQUEST
     console.log(`\nSENDING PUT REQUEST TO BEEHIIV...`);
