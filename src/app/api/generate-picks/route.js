@@ -74,29 +74,31 @@ export async function GET() {
   const res = await fetch(
     `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`,
     {
-      method: 'PATCH',
+      method: 'PUT',  // ← MUST BE PUT, NOT PATCH
       headers: {
         Authorization: `Bearer ${BEEHIIV_API_KEY}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        custom_fields: {
-          today_picks_html: html
-        }
+        custom_fields: [
+          {
+            name: 'today_picks_html',   // ← name, not key
+            value: html
+          }
+        ]
       })
     }
   );
 
   if (res.ok) {
     updated++;
-    console.log(`UPDATED ${sub.email} — today_picks_html saved`);
+    console.log(`SUCCESS: Updated ${sub.email} with today_picks_html`);
   } else {
-    const errorText = await res.text();
-    console.log(`PATCH FAILED for ${sub.email}: ${res.status} — ${errorText}`);
+    const err = await res.text();
+    console.log(`FAILED ${sub.email}: ${res.status} → ${err}`);
   }
 } catch (e) {
-  console.log(`EXCEPTION for ${sub.email}: ${e.message}`);
+  console.log(`EXCEPTION ${sub.email}: ${e.message}`);
 }
   }
 
