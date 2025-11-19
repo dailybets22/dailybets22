@@ -2,115 +2,154 @@
 import { NextResponse } from 'next/server';
 
 const ODDS_API_KEY = process.env.THE_ODDS_API_KEY;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY; // optional
+const BEEHIIV_API_KEY = process.env.BEEHIIV_API_KEY;
+const BEEHIIV_PUBLICATION_ID = process.env.BEEHIIV_PUBLICATION_ID;
 
-// Only NBA and NHL for now
 const SPORTS = {
   basketball_nba: 'NBA',
   ice_hockey_nhl: 'NHL'
 };
 
 export async function GET() {
-  try {
-    const globalPicks = [];
+  console.log('generate-picks STARTED');
 
-    // Step 1: Fetch odds + implied probabilities from The Odds API
-    for (const [key, name] of Object.entries(SPORTS)) {
-      const url = `https://api.the-odds-api.com/v4/sports/${key}/odds/?regions=us&oddsFormat=decimal&apiKey=${ODDS_API_KEY}`;
+  if (!ODDS_API_KEY) {
+    console.error('THE_ODDS_API_KEY is missing in env!');
+    return NextResponse.json({ error: 'Missing THE_ODDS_API_KEY' }, { status: 500 });
+  }
+
+  if (!BEEHIIV_API_KEY || !BEEHIIV_PUBLICATION_ID) {
+    console.error('Beehiiv credentials missing!');
+    return NextResponse.json({ error: 'Beehiiv config missing' }, { status: 500 });
+  }
+
+  const globalPicks = [];
+
+  // === 1. Fetch from The Odds API ===
+  for (const [sportKey, sportName] of Object.entries(SPORTS)) {
+    console.log(`Fetching ${sportName} (${sportKey}) from The Odds API...`);
+
+    const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?regions=us&oddsFormat=decimal&markets=h2h,spreads,totals&apiKey=${ODDS_API_KEY}`;
+
+    let games = [];
+    try {
       const res = await fetch(url, { next: { revalidate: 300 } });
-      const games = await res.json();
+      console.log(`${sportName} response status: ${res.status}`);
 
-      for (const game of games) {
-        if (!game.commence_time) continue;
-        const home = game.home_team;
-        const away = game.away_team;
+      if (res.ok) {
+        games = await res.json();
+        console.log(`${sportName}: Got ${games.length} games`);
+      } else {
+        const text = await res.text();
+        console.error(`${sportName} API error:`, text);
+      }
+    } catch (e) {
+      console.error(`Network error fetching ${sportName}:`, e.message);
+    }
 
-        for (const book of game.bookmakers) {
-          if (book.key !== 'draftkings' && book.key !== 'fanduel') continue; // trusted books
+    let gameCount = 0;
+    for (const game of games) {
+      if (!game?.commence_time || !game?.bookmakers?.length) continue;
 
-          for (const market of book.markets) {
-            if (['h2h', 'spreads', 'totals'].includes(market.key)) {
-              for (const outcome of market.outcomes) {
-                const impliedProb = 1 / outcome.price;
-                let category = 'medium';
-                if (impliedProb >= 0.70) category = 'safe';
-                if (impliedProb <= 0.50) category = 'high-risk';
+      const home = game.home_team;
+      const away = game.away_team;
+      gameCount++;
 
-                globalPicks.push({
-                  sport: name,
-                  game: `${away} @ ${home}`,
-                  market: market.key === 'h2h' ? 'Moneyline' : market.key === 'spreads' ? 'Spread' : 'Total',
-                  pick: outcome.name,
-                  price: outcome.price,
-                  probability: (impliedProb * 100).toFixed(1) + '%',
-                  category,
-                  commence_time: game.commence_time
-                });
-              }
-            }
+      for (const book of game.bookmakers) {
+        if (!['draftkings', 'draftkings', 'fanduel', 'betmgm', 'espnbet'].includes(book.key.toLowerCase())) continue;
+
+        for (const market of book.markets || []) {
+          for (const outcome of market.outcomes || []) {
+            const impliedProb = 1 / outcome.price;
+            let category = 'medium';
+            if (impliedProb >= 0.70) category = 'safe';
+            if (impliedProb <= 0.50) category = 'high-risk';
+
+            globalPicks.push({
+              sport: sportName,
+              game: `${away} @ ${home}`,
+              market: market.key === 'h2h' ? 'Moneyline' : market.key === 'spreads' ? 'Spread' : 'Total',
+              pick: outcome.name,
+              price: outcome.price,
+              probability: (impliedProb * 100).toFixed(1) + '%',
+              category,
+              commence_time: game.commence_time
+            });
           }
         }
       }
     }
+    console.log(`${sportName}: Processed ${gameCount} games → ${globalPicks.length} total picks so far`);
+  }
 
-    // Step 2: Scrape Odds Shark for expert reasons (free, public data)
-    const sharkPicks = await scrapeOddsShark();
+  console.log(`Total picks collected from The Odds API: ${globalPicks.length}`);
 
-    // Merge reasons into our picks
-    globalPicks.forEach(pick => {
-      const shark = sharkPicks.find(s => 
-        pick.game.includes(s.team1) || pick.game.includes(s.team2)
-      );
-      if (shark) pick.reason = shark.reason;
-    });
+  // === 2. Scrape Odds Shark (optional but nice) ===
+  console.log('Scraping Odds Shark for reasons...');
+  const sharkReasons = await scrapeOddsShark();
+  console.log(`Got ${sharkReasons.length} reasons from Odds Shark`);
 
-    // Step 3: Get all Beehiiv subscribers
-    const subscribers = await fetchAllBeehiivSubscribers();
+  globalPicks.forEach(pick => {
+    const match = sharkReasons.find(r =>
+      pick.game.includes(r.team1) || pick.game.includes(r.team2)
+    );
+    if (match) pick.reason = match.text;
+  });
 
-    // Step 4: Personalize for each user
-    for (const sub of subscribers) {
-      const userSports = sub.custom_fields?.selected_sports?.split(',').map(s => s.trim()) || [];
-      if (userSports.length === 0) continue;
+  // === 3. Get subscribers from Beehiiv ===
+  console.log('Fetching Beehiiv subscribers...');
+  const subscribers = await fetchAllBeehiivSubscribers();
+  console.log(`Found ${subscribers.length} subscribers`);
 
-      const userPicks = globalPicks
-        .filter(p => userSports.includes(p.sport))
-        .sort((a, b) => b.probability - a.probability);
+  let updatedCount = 0;
+  for (const sub of subscribers) {
+    const userSports = sub.custom_fields?.selected_sports
+      ?.split(',')
+      .map(s => s.trim()) || [];
 
-      // Exactly: 5 safe, 2 medium, 2 high-risk, 1 parlay
-      const safe = userPicks.filter(p => p.category === 'safe').slice(0, 5);
-      const medium = userPicks.filter(p => p.category === 'medium').slice(0, 2);
-      const high = userPicks.filter(p => p.category === 'high-risk').slice(0, 2);
-      const parlay = createParlay(userPicks.slice(0, 10));
+    if (userSports.length === 0) continue;
 
-      const final10 = [...safe, ...medium, ...high, parlay];
+    const userPicks = globalPicks
+      .filter(p => userSports.includes(p.sport))
+      .sort((a, b) => parseFloat(b.probability) - parseFloat(a.probability));
 
-      const html = renderEmailHtml(final10, sub.name || 'Friend');
+    const safe   = userPicks.filter(p => p.category === 'safe').slice(0, 5);
+    const medium = userPicks.filter(p => p.category === 'medium').slice(0, 2);
+    const high   = userPicks.filter(p => p.category === 'high-risk').slice(0, 2);
+    const parlay = createParlay(userPicks.slice(0, 12));
 
-      // Update Beehiiv custom field
-      await fetch(`https://api.beehiiv.com/v2/publications/${process.env.BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`, {
+    const final10 = [...safe, ...medium, ...high, parlay];
+    const html = renderEmailHtml(final10, sub.name || 'Friend');
+
+    try {
+      await fetch(`https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${process.env.BEEHIIV_API_KEY}`,
+          Authorization: `Bearer ${BEEHIIV_API_KEY}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          custom_fields: {
-            today_picks_html: html
-          }
+          custom_fields: { today_picks_html: html }
         })
       });
+      updatedCount++;
+    } catch (e) {
+      console.error(`Failed to update subscriber ${sub.email}:`, e.message);
     }
-
-    return NextResponse.json({ success: true, picksGenerated: globalPicks.length });
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  console.log(`SUCCESS! Updated ${updatedCount} subscribers`);
+  return NextResponse.json({
+    success: true,
+    picksGenerated: globalPicks.length,
+    subscribersUpdated: updatedCount,
+    message: 'Daily picks delivered!'
+  });
 }
 
-// Helper: Scrape Odds Shark (simple, reliable)
+// ——————— Helpers ———————
 async function scrapeOddsShark() {
-  const picks = [];
+  const reasons = [];
   const urls = [
     'https://www.oddsshark.com/nba/computer-picks',
     'https://www.oddsshark.com/nhl/computer-picks'
@@ -118,64 +157,66 @@ async function scrapeOddsShark() {
 
   for (const url of urls) {
     try {
-      const html = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }).then(r => r.text());
-      const regex = /<div class="computer-pick__title">([^<]+)<\/div>[\s\S]*?Pick:<\/span>\s*([^<]+)[\s\S]*?Confidence:<\/span>\s*([^<]+)/g;
-      let match;
-      while ((match = regex.exec(html))) {
-        picks.push({
-          game: match[1],
-          pick: match[2].trim(),
-          reason: `Odds Shark computer model gives this pick ${match[3]} confidence based on recent trends, injuries, and historical data.`
+      const html = await fetch(url).then(r => r.text());
+      const regex = /<h3[^>]*>([^<]+ vs [^<]+)<\/h3>[\s\S]*?<div class="computer-pick__text">([\s\S]*?)<\/div>/gi;
+      let m;
+      while ((m = regex.exec(html))) {
+        const teams = m[1].split(' vs ');
+        reasons.push({
+          team1: teams[0]?.trim(),
+          team2: teams[1]?.trim(),
+          text: m[2].replace(/<[^>]*>/g, '').trim()
         });
       }
-    } catch (e) { console.log('Odds Shark scrape failed, continuing...'); }
+    } catch (e) {
+      console.log('Odds Shark scrape failed (normal on some days):', e.message);
+    }
   }
-  return picks;
+  return reasons;
 }
 
-// Simple parlay creator
 function createParlay(picks) {
-  const legs = picks.slice(0, 3).map(p => `${p.pick} (${p.price.toFixed(2)})`);
+  if (picks.length < 2) return { pick: 'No strong parlay today', price: '—', reason: 'Not enough legs' };
+  const legs = picks.slice(0, 3);
+  const payout = legs.reduce((a, p) => a * p.price, 1).toFixed(2);
   return {
     sport: 'Multi',
     game: 'Daily Parlay',
-    market: 'Parlay',
-    pick: legs.join(' × '),
-    price: picks.slice(0, 3).reduce((a, b) => a * b.price, 1).toFixed(2),
+    pick: legs.map(l => l.pick).join(' × '),
+    price: payout,
     probability: 'High Reward',
     category: 'parlay',
-    reason: 'Best 3 legs combined for maximum payout potential'
+    reason: 'Best 3 value legs combined'
   };
 }
 
-// HTML renderer
 function renderEmailHtml(picks, name) {
   return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; background: #0f172a; color: white;">
-      <h1>Hey ${name}, here are your 10 picks for today</h1>
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;background:#0f172a;color:white;border-radius:12px;">
+      <h1 style="text-align:center;">Hey ${name}, Your 10 Picks Are Ready</h1>
       <h2>5 Safe Bets</h2>
-      ${picks.slice(0,5).map(p => `<p><strong>${p.game}</strong><br>${p.pick} @ ${p.price} (${p.probability})<br><em>${p.reason || 'Strong favorite with high win probability'}</em></p>`).join('')}
+      ${picks.slice(0,5).map(p => `<p><strong>${p.game}</strong><br>${p.pick} @ ${p.price} <small>(${p.probability})</small><br><em>${p.reason || 'Strong implied probability'}</em></p><hr>`).join('')}
       <h2>2 Medium Risk</h2>
-      ${picks.slice(5,7).map(p => `<p><strong>${p.game}</strong><br>${p.pick} @ ${p.price}<br><em>${p.reason || 'Balanced value play with good value'}</em></p>`).join('')}
+      ${picks.slice(5,7).map(p => `<p><strong>${p.game}</strong><br>${p.pick} @ ${p.price}<br><em>${p.reason || 'Good value'}</em></p>`).join('')}
       <h2>2 High Risk / High Reward</h2>
-      ${picks.slice(7,9).map(p => `<p><strong>${p.game}</strong><br>${p.pick} @ ${p.price}<br><em>${p.reason || 'Underdog with massive payout potential'}</em></p>`).join('')}
+      ${picks.slice(7,9).map(p => `<p><strong>${p.game}</strong><br>${p.pick} @ ${p.price}<br><em>${p.reason || 'Big payout potential'}</em></p>`).join('')}
       <h2>1 Parlay of the Day</h2>
-      <p><strong>${picks[9].pick}</strong><br>Payout: ${picks[9].price}x your stake<br><em>${picks[9].reason}</em></p>
-      <p style="font-size:12px; color:#666; margin-top:40px;">21+ • Play responsibly • Not financial advice</p>
+      <p><strong>${picks[9].pick}</strong><br>Payout: ${picks[9].price}x<br><em>${picks[9].reason}</em></p>
+      <p style="font-size:11px;color:#666;">21+ • Entertainment only • Play responsibly</p>
     </div>`;
 }
 
-// Fetch all subscribers (handles pagination)
 async function fetchAllBeehiivSubscribers() {
-  let all = [];
+  const all = [];
   let page = 1;
   while (true) {
-    const res = await fetch(`https://api.beehiiv.com/v2/publications/${process.env.BEEHIIV_PUBLICATION_ID}/subscriptions?page=${page}&limit=100`, {
-      headers: { Authorization: `Bearer ${process.env.BEEHIIV_API_KEY}` }
-    });
-    const data = await res.json();
-    all = [...all, ...data.data];
-    if (!data.pagination.next_page) break;
+    const res = await fetch(
+      `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions?page=${page}&limit=100`,
+      { headers: { Authorization: `Bearer ${BEEHIIV_API_KEY}` } }
+    );
+    const json = await res.json();
+    all.push(...json.data);
+    if (!json.pagination?.next_page) break;
     page++;
   }
   return all;
