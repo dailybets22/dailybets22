@@ -11,58 +11,69 @@ export async function GET() {
   const subscribers = await fetchAllBeehiivSubscribers();
   let updated = 0;
 
-  for (const sub of subscribers) {
-    if (sub.status !== 'active') continue;
+for (const sub of subscribers) {
+  if (sub.status !== 'active') continue;
 
-    const sportsField = Array.isArray(sub.custom_fields)
-      ? sub.custom_fields.find(f => f.name === 'selected_sports')
-      : null;
+  // READ selected_sports — use exact field name from Beehiiv
+  const sportsField = Array.isArray(sub.custom_fields)
+    ? sub.custom_fields.find(f => f.name === 'selected_sports')  // ← change if your field name differs!
+    : null;
 
-    const userSports = (sportsField?.value || '')
-      .split(',')
-      .map(s => s.trim().toLowerCase())
-      .filter(Boolean);
+  const userSports = (sportsField?.value || '')
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean);
 
-    if (userSports.length === 0) continue;
+  if (userSports.length === 0) continue;
 
-    const userPicks = globalPicks
-      .filter(p => userSports.includes(p.sport.toLowerCase()))
-      .sort((a, b) => parseFloat(b.probability) - parseFloat(a.probability));
+  // FIX 1: Normalize sport from odds to lowercase for matching
+  const userPicks = globalPicks
+    .filter(p => {
+      const sportLower = p.sport.toLowerCase();  // ← NBA → nba
+      return userSports.includes(sportLower);
+    })
+    .sort((a, b) => parseFloat(b.probability) - parseFloat(a.probability));
 
-    if (userPicks.length < 3) continue;
+  // FIX 2: Lower threshold — even 1 pick is better than zero
+  if (userPicks.length === 0) continue;
 
-    const final10 = [
-      ...userPicks.filter(p => p.category === 'safe').slice(0, 5),
-      ...userPicks.filter(p => p.category === 'medium').slice(0, 3),
-      ...userPicks.filter(p => p.category === 'high-risk').slice(0, 2),
-      createParlay(userPicks.slice(0, 5))
-    ];
+  // Build final 10 — prioritize best picks
+  const safe = userPicks.filter(p => p.category === 'safe').slice(0, 5);
+  const medium = userPicks.filter(p => p.category === 'medium').slice(0, 4);
+  const risky = userPicks.filter(p => p.category === 'high-risk').slice(0, 3);
+  const topPicks = [...safe, ...medium, ...risky].slice(0, 9);
 
-    const html = renderEmailHtml(final10, sub.name || 'Friend');
-
-    try {
-      const res = await fetch(
-        `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`,
-        {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${BEEHIIV_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            custom_fields: [
-              { name: 'today_picks_html', value: html }
-            ]
-          })
-        }
-      );
-
-      if (res.ok) updated++;
-    } catch (e) {
-      console.error(`Failed to update ${sub.email}:`, e.message);
-    }
+  // Always include parlay if we have at least 2 picks
+  const final10 = topPicks;
+  if (topPicks.length >= 2) {
+    final10.push(createParlay(topPicks));
   }
 
+  const html = renderEmailHtml(final10, sub.name || 'Friend');
+
+  // WRITE to Beehiiv — use exact field name
+  try {
+    const res = await fetch(
+      `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${BEEHIIV_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          custom_fields: [
+            { name: 'today_picks_html', value: html }  // ← change if your field name differs!
+          ]
+        })
+      }
+    );
+
+    if (res.ok) updated++;
+  } catch (e) {
+    console.error(`Update failed for ${sub.email}:`, e.message);
+  }
+}
   return NextResponse.json({
     success: true,
     picksGenerated: globalPicks.length,
