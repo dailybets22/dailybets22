@@ -67,16 +67,16 @@ for (const sub of subscribers) {
             // Update subscription by ID (PUT /publications/:publicationId/subscriptions/:subscriptionId)
         console.log(`DEBUG: About to update ${sub.email}, html exists: ${html}, html length: ${html?.length || 0}`);
         const response = await fetch(`https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`, {
-        method: "PUT",
+        method: 'PUT',
         headers: {
-            "Authorization": `Bearer ${BEEHIIV_API_KEY}`,
-            "Content-Type": "application/json"
+            Authorization: `Bearer ${BEEHIIV_API_KEY}`,
+            'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            "custom_fields": [
+            custom_fields: [
             {
-                "name": "today_picks_html",
-                "value": html
+                name: "today_picks_html",
+                value: html
             }
             ]
         }),
@@ -189,19 +189,5 @@ function createParlay(picks) {
 }
 
 function renderEmailHtml(picks, name) {
-  return `
-    <div style="font-family:Arial,sans-serif;background:#0f172a;color:white;padding:40px;border-radius:16px;max-width:640px;margin:auto;text-align:center">
-      <h1 style="color:#22c55e;font-size:28px;margin-bottom:30px">Hey ${name}, Your Daily Picks Are Here!</h1>
-      ${picks.map(p => `
-        <div style="background:#1e293b;padding:20px;margin:15px 0;border-radius:12px">
-          <div style="font-size:14px;color:#94a3b8">${p.game}</div>
-          <div style="font-size:22px;margin:8px 0;color:#22c55e">${p.pick}</div>
-          <div style="font-size:18px">@ ${p.odds} <span style="color:#94a3b8">(${p.probability})</span></div>
-        </div>
-      `).join('')}
-      <p style="font-size:12px;color:#666;margin-top:40px">
-        21+ • Entertainment only • Play responsibly
-      </p>
-    </div>
-  `.trim();
+  return `${picks.map(p => `${p.game}: ${p.pick} @ ${p.odds} (${p.probability})`).join('\n')}`;
 }
