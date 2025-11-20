@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 
 const BEEHIIV_API_KEY = process.env.BEEHIIV_API_KEY;
 const BEEHIIV_PUBLICATION_ID = process.env.BEEHIIV_PUBLICATION_ID;
 
-export async function POST(request) {
+export async function POST(request: NextRequest) {
   try {
     const { email, name, sports } = await request.json();
 
@@ -26,16 +26,6 @@ export async function POST(request) {
       send_welcome_email: true,
       reactivate_if_unsubscribed: true
     };
-
-    // Log the request for debugging
-    console.log('Outgoing Request Details:', {
-      url: `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions`,
-      headers: {
-        'Authorization': `Bearer ${BEEHIIV_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: payload
-    });
 
     const res = await fetch(
       `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions`,

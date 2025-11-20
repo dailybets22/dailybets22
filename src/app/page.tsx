@@ -5,6 +5,8 @@ import { useState } from 'react';
 export default function Home() {
   const [selectedSports, setSelectedSports] = useState(['nba', 'nhl']);
   const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSportChange = (sport: string) => {
     setSelectedSports((prev) =>
@@ -20,6 +22,10 @@ export default function Home() {
     const email = formData.get('email') as string;
     const name = formData.get('name') as string;
 
+    // clear previous messages
+    setSuccessMessage(null);
+    setErrorMessage(null);
+
     try {
       const response = await fetch('/api/subscribe', {
         method: 'POST',
@@ -32,14 +38,16 @@ export default function Home() {
       });
 
       if (response.ok) {
-        alert('Successfully subscribed!');
+        setSuccessMessage('Thank you for subscribing!');
         (e.target as HTMLFormElement).reset();
+        // optionally reset selected sports to defaults
+        setSelectedSports(['nba', 'nhl']);
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        setErrorMessage(error?.error || 'Subscription failed');
       }
     } catch (err) {
-      alert('Something went wrong. Please try again.');
+      setErrorMessage('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -103,7 +111,7 @@ export default function Home() {
                     <input type="checkbox" disabled className="h-6 w-6" />
                     <div>
                       <div className="font-bold">{sport}</div>
-                      <div className="text-sm text-gray-500">Coming 2026</div>
+                      <div className="text-sm text-gray-500">Coming Soon..</div>
                     </div>
                   </div>
                 ))}
@@ -113,11 +121,11 @@ export default function Home() {
             {/* CREDIBILITY BADGES */}
             <div className="mb-12 grid grid-cols-1 gap-6 md:grid-cols-3">
               <div className="rounded-xl bg-gradient-to-br from-emerald-900 to-emerald-700 p-6">
-                <div className="text-4xl font-black text-emerald-300">74%</div>
+                <div className="text-4xl font-black text-emerald-300">{'>'}76%</div>
                 <div className="text-sm uppercase tracking-wider">Safe Bets Win Rate</div>
               </div>
               <div className="rounded-xl bg-gradient-to-br from-cyan-900 to-cyan-700 p-6">
-                <div className="text-4xl font-black text-cyan-300">63%</div>
+                <div className="text-4xl font-black text-cyan-300">{'>'}65%</div>
                 <div className="text-sm uppercase tracking-wider">Medium-Risk Win Rate</div>
               </div>
               <div className="rounded-xl bg-gradient-to-br from-purple-900 to-purple-700 p-6">
@@ -131,14 +139,6 @@ export default function Home() {
             <form onSubmit={handleSubmit} className="mx-auto max-w-md">
               <div className="mb-4">
                 <input
-                  type="text"
-                  name="name"
-                  placeholder="Enter your name (optional)"
-                  className="w-full rounded-lg bg-white/10 px-6 py-5 text-lg backdrop-blur placeholder-gray-400 outline-none focus:ring-4 focus:ring-emerald-500"
-                />
-              </div>
-              <div className="mb-4">
-                <input
                   type="email"
                   name="email"
                   placeholder="Enter your email"
@@ -146,17 +146,25 @@ export default function Home() {
                   className="w-full rounded-lg bg-white/10 px-6 py-5 text-lg backdrop-blur placeholder-gray-400 outline-none focus:ring-4 focus:ring-emerald-500"
                 />
               </div>
+                            <div className="mb-4">
+                <input
+                  type="text"
+                  name="name"
+                  placeholder="Enter your name (optional)"
+                  className="w-full rounded-lg bg-white/10 px-6 py-5 text-lg backdrop-blur placeholder-gray-400 outline-none focus:ring-4 focus:ring-emerald-500"
+                />
+              </div>
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-lg bg-gradient-to-r from-emerald-500 to-cyan-500 py-5 text-xl font-bold uppercase tracking-wider transition hover:from-emerald-400 hover:to-cyan-400 disabled:opacity-50"
+                className="w-full rounded-lg bg-gradient-to-r from-emerald-500 to-cyan-500 py-5 text-xl font-bold uppercase tracking-wider transition transform hover:from-emerald-400 hover:to-cyan-400 active:scale-95 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
               >
-                {loading ? 'Subscribing...' : 'Get Free Picks Every Day'}
+                {loading ? 'Subscribing...' : 'Get Your Picks Every Day'}
               </button>
             </form>
 
-            <p className="mt-6 text-sm text-gray-500">
-              Zero spam. Unsubscribe anytime. 21+ only.
+            <p className="mt-6 mb-6 text-sm text-gray-500">
+              Zero spam. Unsubscribe anytime. Entertainment only. Bet on your own risk. 21+ only.
             </p>
           </div>
         </section>
