@@ -14,21 +14,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Email and at least one sport required' }, { status: 400 })
   }
 
-  const { error } = await supabase
+  const { error, data } = await supabase
     .from('subscribers')
     .upsert(
       {
         email: email.toLowerCase().trim(),
         name: name?.trim() || null,
-        selected_sports: selected_sports,
+        selected_sports,
         is_active: true
       },
       { onConflict: 'email' }
     )
 
+  // If error exists, return error response
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('Supabase upsert error:', error)
+    return NextResponse.json({ error: 'Failed to subscribe' }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true })
+  // Success - data was inserted/updated
+  return NextResponse.json({ success: true, data })
 }
