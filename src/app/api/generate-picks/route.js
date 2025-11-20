@@ -60,6 +60,8 @@ for (const sub of subscribers) {
 
   const html = renderEmailHtml(final10, sub.name || 'Friend');
 
+  console.log(`Generated HTML for ${sub.email}:`, html.slice(0, 100) + '...');
+
   // WRITE to Beehiiv — use exact field name
   try {
     const res = await fetch(
@@ -79,6 +81,9 @@ for (const sub of subscribers) {
     );
 
     if (res.ok) updated++;
+    console.log(`Updated picks for ${sub.email}:`, res.status);
+    console.log(`Updated count:`, updated);
+
   } catch (e) {
     console.error(`Update failed for ${sub.email}:`, e.message);
   }
