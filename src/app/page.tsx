@@ -36,9 +36,9 @@ export default function Home() {
       });
 
       if (response.ok) {
+        console.log("Inside success");
         setSuccessMessage('Thank you for subscribing!');
         setErrorMessage(null);
-        e.currentTarget.reset();
         setSelectedSports(['nba', 'nhl']);
         setTimeout(() => setSuccessMessage(null), 5000);
       } else {
@@ -46,7 +46,8 @@ export default function Home() {
         setErrorMessage(error?.error || 'Subscription failed');
         setSuccessMessage(null);
       }
-    } catch (err) {
+    } catch (err){
+      console.log("Inside catch error");
       setErrorMessage('Something went wrong. Please try again.');
       setSuccessMessage(null);
     } finally {
