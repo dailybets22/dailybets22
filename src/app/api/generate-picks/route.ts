@@ -17,12 +17,12 @@ for (const sub of subscribers) {
 
   // READ selected_sports — use exact field name from Beehiiv
   const sportsField = Array.isArray(sub.custom_fields)
-    ? sub.custom_fields.find(f => f.name === 'selected_sports')  // ← change if your field name differs!
+    ? sub.custom_fields.find((f: any) => f.name === 'selected_sports')  // ← change if your field name differs!
     : null;
 
   const userSports = (sportsField?.value || '')
     .split(',')
-    .map(s => s.trim().toLowerCase())
+    .map((s: string) => s.trim().toLowerCase())
     .filter(Boolean);
 
     console.log(`Subscriber ${sub.email} selected sports:`, userSports);
@@ -90,7 +90,8 @@ for (const sub of subscribers) {
       console.log(`FAILED → ${sub.email} | ${response.status} | ${err}`);
     }
   } catch (e) {
-    console.log(`EXCEPTION → ${e.message}`);
+    const msg = (e as any)?.message ?? String(e);
+    console.log('EXCEPTION →', msg);
   }
 }
 
@@ -149,13 +150,14 @@ async function fetchRealPicks() {
         }
       }
     } catch (e) {
-      console.error(`Odds API error for ${sportKey}:`, e.message);
+      const msg = (e as any)?.message ?? String(e);
+      console.error(`Odds API error for ${sportKey}:`, msg);
     }
   }
 
   // Remove duplicates & sort by probability
-  const unique = Array.from(new Map(allPicks.map(p => [`${p.game}-${p.pick}`, p])).values());
-  return unique.sort((a, b) => parseFloat(b.probability) - parseFloat(a.probability));
+  const unique = Array.from(new Map(allPicks.map((p: any) => [`${p.game}-${p.pick}`, p])).values());
+  return unique.sort((a: any, b: any) => parseFloat(b.probability) - parseFloat(a.probability));
 }
 
 // —————— BEEHIIV SUBSCRIBERS ——————
@@ -175,19 +177,19 @@ async function fetchAllBeehiivSubscribers() {
 }
 
 // —————— PARLAY & HTML ——————
-function createParlay(picks) {
+function createParlay(picks: any[]) {
   const legs = picks.slice(0, 3);
-  const payout = legs.reduce((a, p) => a * parseFloat(p.odds), 1).toFixed(2);
+  const payout = legs.reduce((a: number, p: any) => a * parseFloat(p.odds), 1).toFixed(2);
   return {
     sport: 'Multi',
     game: 'Daily Parlay',
-    pick: legs.map(p => p.pick).join(' × '),
+    pick: legs.map((p: any) => p.pick).join(' × '),
     odds: payout,
     probability: 'High Reward',
     category: 'parlay'
   };
 }
 
-function renderEmailHtml(picks, name) {
-  return `${picks.map(p => `${p.game}: ${p.pick} @ ${p.odds} (${p.probability})`).join('\n')}`;
+function renderEmailHtml(picks: any[], name: string) {
+  return `${picks.map((p: any) => `${p.game}: ${p.pick} @ ${p.odds} (${p.probability})`).join('\n')}`;
 }
