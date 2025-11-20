@@ -21,7 +21,6 @@ export async function POST(request) {
       email: email,
       custom_fields: [
         { name: 'name', value: name || '' },
-        { name: 'today_picks', value: 'test' },
         { name: 'selected_sports', value: sportsString }
       ],
       send_welcome_email: true,
