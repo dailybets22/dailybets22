@@ -65,17 +65,17 @@ for (const sub of subscribers) {
   // WRITE to Beehiiv — use exact field name
         try {
             // Update subscription by ID (PUT /publications/:publicationId/subscriptions/:subscriptionId)
-        const response = await fetch("https://api.beehiiv.com/v2/publications/pub_9e0eb0e8-1851-47eb-a167-16e317364128/subscriptions/sub_9958fbf2-faf8-4db9-b6c7-86cae493ae4c", {
+        const response = await fetch(`https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`, {
         method: "PUT",
         headers: {
-            "Authorization": "Bearer D6o2xLlO20zFdzX2XZQOFkxtoPnN4mjfqMEuVCZEGZRtuCCzG4zsxJsLCRCqwN6q",
+            "Authorization": `Bearer ${BEEHIIV_API_KEY}`,
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
             "custom_fields": [
             {
                 "name": "today_picks_html",
-                "value": "test data"
+                "value": html
             }
             ]
         }),
