@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SECRET_KEY!   // sb_secret_… key
+  process.env.SUPABASE_SERVICE_ROLE_KEY! 
 )
 
 export async function POST(request: Request) {
