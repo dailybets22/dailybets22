@@ -21,7 +21,7 @@ export async function POST(request: Request) {
         email: email.toLowerCase().trim(),
         name: name?.trim() || null,
         selected_sports: selected_sports,
-        isActive: true
+        is_active: true
       },
       { onConflict: 'email' }
     )
