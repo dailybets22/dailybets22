@@ -80,9 +80,16 @@ for (const sub of subscribers) {
       }
     );
 
-    if (res.ok) updated++;
+    if (res.ok)
+        { updated++;
     console.log(`Updated picks for ${sub.email}:`, res.status);
     console.log(`Updated count:`, updated);
+        }
+    else {
+      const errorData = await res.text();
+      console.error(`Failed to update ${sub.email}:`, res.status, errorData);
+    }
+
 
   } catch (e) {
     console.error(`Update failed for ${sub.email}:`, e.message);
