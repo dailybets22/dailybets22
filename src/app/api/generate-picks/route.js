@@ -67,35 +67,31 @@ for (const sub of subscribers) {
     const res = await fetch(
       `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`,
       {
-        method: 'PUT',
+        method: "PUT",
         headers: {
-          'Authorization': `Bearer ${BEEHIIV_API_KEY}`,
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${BEEHIIV_API_KEY}`,
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            "custom_fields": [
+          custom_fields: [
             {
-                "name": "today_picks_html",
-                "value": html
+              name: "today_picks_html",
+              value: html
             }
-            ]
-        }),
+          ]
+        })
       }
     );
 
-    if (res.ok)
-        { updated++;
-    console.log(`Updated picks for ${sub.email}:`, res.status);
-    console.log(`Updated count:`, updated);
-        }
-    else {
-      const errorData = await res.text();
-      console.error(`Failed to update ${sub.email}:`, res.status, errorData);
+    if (res.ok) {
+      updated++;
+      console.log(`SUCCESS → ${sub.email} updated!`);
+    } else {
+      const err = await res.text();
+      console.log(`FAILED → ${sub.email} | ${res.status} | ${err}`);
     }
-
-
   } catch (e) {
-    console.error(`Update failed for ${sub.email}:`, e.message);
+    console.log(`EXCEPTION → ${e.message}`);
   }
 }
   return NextResponse.json({
