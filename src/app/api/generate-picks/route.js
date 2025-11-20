@@ -9,6 +9,7 @@ export async function GET() {
   const globalPicks = await fetchRealPicks();
 
   const subscribers = await fetchAllBeehiivSubscribers();
+  console.log(`Fetched ${subscribers.length} subscribers from Beehiiv`);
   let updated = 0;
 
 for (const sub of subscribers) {
@@ -24,6 +25,8 @@ for (const sub of subscribers) {
     .map(s => s.trim().toLowerCase())
     .filter(Boolean);
 
+    console.log(`Subscriber ${sub.email} selected sports:`, userSports);
+
   if (userSports.length === 0) continue;
 
   // FIX 1: Normalize sport from odds to lowercase for matching
@@ -34,6 +37,8 @@ for (const sub of subscribers) {
     })
     .sort((a, b) => parseFloat(b.probability) - parseFloat(a.probability));
 
+    console.log(`Subscriber ${sub.email} has ${userPicks.length} matching picks`);
+
   // FIX 2: Lower threshold — even 1 pick is better than zero
   if (userPicks.length === 0) continue;
 
@@ -43,11 +48,15 @@ for (const sub of subscribers) {
   const risky = userPicks.filter(p => p.category === 'high-risk').slice(0, 3);
   const topPicks = [...safe, ...medium, ...risky].slice(0, 9);
 
+  console.log(`Subscriber ${sub.email} final picks count before parlay:`, topPicks.length);
+
   // Always include parlay if we have at least 2 picks
   const final10 = topPicks;
   if (topPicks.length >= 2) {
     final10.push(createParlay(topPicks));
   }
+
+  console.log(`Subscriber ${sub.email} final picks count after parlay:`, final10.length);
 
   const html = renderEmailHtml(final10, sub.name || 'Friend');
 
