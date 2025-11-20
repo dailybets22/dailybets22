@@ -33,15 +33,17 @@ export default function Home() {
         body: JSON.stringify({
           email,
           name: name || null,
-          sports: selectedSports,
+          selected_sports: selectedSports,
         }),
       });
 
       if (response.ok) {
         setSuccessMessage('Thank you for subscribing!');
-        (e.target as HTMLFormElement).reset();
+        (e.currentTarget as HTMLFormElement).reset();
         // optionally reset selected sports to defaults
         setSelectedSports(['nba', 'nhl']);
+        // auto-clear success message after 5 seconds
+        setTimeout(() => setSuccessMessage(null), 5000);
       } else {
         const error = await response.json();
         setErrorMessage(error?.error || 'Subscription failed');
@@ -161,6 +163,18 @@ export default function Home() {
               >
                 {loading ? 'Subscribing...' : 'Get Your Picks Every Day'}
               </button>
+
+              {successMessage && (
+                <div className="mt-4 rounded-lg bg-emerald-500/20 px-4 py-3 text-center text-emerald-300">
+                  {successMessage}
+                </div>
+              )}
+
+              {errorMessage && (
+                <div className="mt-4 rounded-lg bg-red-500/20 px-4 py-3 text-center text-red-300">
+                  {errorMessage}
+                </div>
+              )}
             </form>
 
             <p className="mt-6 mb-6 text-sm text-gray-500">
