@@ -17,14 +17,12 @@ export default function Home() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
+    setSuccessMessage(null);
+    setErrorMessage(null);
 
     const formData = new FormData(e.currentTarget);
     const email = formData.get('email') as string;
     const name = formData.get('name') as string;
-
-    // clear previous messages
-    setSuccessMessage(null);
-    setErrorMessage(null);
 
     try {
       const response = await fetch('/api/subscribe', {
@@ -39,17 +37,18 @@ export default function Home() {
 
       if (response.ok) {
         setSuccessMessage('Thank you for subscribing!');
-        (e.currentTarget as HTMLFormElement).reset();
-        // optionally reset selected sports to defaults
+        setErrorMessage(null);
+        e.currentTarget.reset();
         setSelectedSports(['nba', 'nhl']);
-        // auto-clear success message after 5 seconds
         setTimeout(() => setSuccessMessage(null), 5000);
       } else {
         const error = await response.json();
         setErrorMessage(error?.error || 'Subscription failed');
+        setSuccessMessage(null);
       }
     } catch (err) {
       setErrorMessage('Something went wrong. Please try again.');
+      setSuccessMessage(null);
     } finally {
       setLoading(false);
     }
