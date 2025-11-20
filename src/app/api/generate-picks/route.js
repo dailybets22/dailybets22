@@ -69,14 +69,17 @@ for (const sub of subscribers) {
       {
         method: 'PUT',
         headers: {
-          Authorization: `Bearer ${BEEHIIV_API_KEY}`,
+          'Authorization': `Bearer ${BEEHIIV_API_KEY}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          custom_fields: [
-            { name: 'today_picks_html', value: html }  // ← change if your field name differs!
-          ]
-        })
+            "custom_fields": [
+            {
+                "name": "today_picks_html",
+                "value": html
+            }
+            ]
+        }),
       }
     );
 
