@@ -65,6 +65,7 @@ for (const sub of subscribers) {
   // WRITE to Beehiiv — use exact field name
         try {
             // Update subscription by ID (PUT /publications/:publicationId/subscriptions/:subscriptionId)
+        console.log(`DEBUG: About to update ${sub.email}, html exists: ${html}, html length: ${html?.length || 0}`);
         const response = await fetch(`https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`, {
         method: "PUT",
         headers: {
@@ -75,7 +76,7 @@ for (const sub of subscribers) {
             "custom_fields": [
             {
                 "name": "today_picks_html",
-                "value": "html"
+                "value": html
             }
             ]
         }),
@@ -92,6 +93,7 @@ for (const sub of subscribers) {
     console.log(`EXCEPTION → ${e.message}`);
   }
 }
+
   return NextResponse.json({
     success: true,
     picksGenerated: globalPicks.length,
