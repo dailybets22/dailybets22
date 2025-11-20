@@ -75,7 +75,7 @@ for (const sub of subscribers) {
             "custom_fields": [
             {
                 "name": "today_picks_html",
-                "value": html
+                "value": "html"
             }
             ]
         }),
@@ -85,8 +85,8 @@ for (const sub of subscribers) {
       updated++;
       console.log(`SUCCESS → ${sub.email} updated!`);
     } else {
-      const err = await res.text();
-      console.log(`FAILED → ${sub.email} | ${res.status} | ${err}`);
+      const err = await response.text();
+      console.log(`FAILED → ${sub.email} | ${response.status} | ${err}`);
     }
   } catch (e) {
     console.log(`EXCEPTION → ${e.message}`);
