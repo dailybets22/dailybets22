@@ -1,12 +1,17 @@
+// src/app/api/subscribe/route.ts
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { Resend } from 'resend';
+import WelcomeEmail from '@/emails/WelcomeEmail';
+
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: Request) {
-  const supabase = createClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-
   const { email, name, selected_sports } = await request.json();
 
   if (!email || !selected_sports?.length) {
@@ -18,7 +23,7 @@ export async function POST(request: Request) {
 
   const normalizedEmail = email.toLowerCase().trim();
 
-  // 🔥 1. CHECK IF USER EXISTS
+  // 1. CHECK IF USER EXISTS
   const { data: existingUser, error: lookupError } = await supabase
     .from('subscribers')
     .select('*')
@@ -27,13 +32,12 @@ export async function POST(request: Request) {
 
   if (lookupError) {
     console.error('Lookup error:', lookupError);
-    return NextResponse.json(
-      { error: 'Server error checking email' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 
-  // 🔥 2. IF EXISTS AND is_active_subscriber = true → BLOCK
+  let shouldSendWelcome = false;
+
+  // 2. IF EXISTS AND ACTIVE → BLOCK
   if (existingUser && existingUser.is_active_subscriber === true) {
     return NextResponse.json(
       { error: 'You already have an active subscription' },
@@ -41,7 +45,7 @@ export async function POST(request: Request) {
     );
   }
 
-  // 🔥 3. IF EXISTS BUT NOT ACTIVE → RE-ACTIVATE (INSERT NEW OR UPDATE)
+  // 3. REACTIVATE INACTIVE USER
   if (existingUser && existingUser.is_active_subscriber === false) {
     const { error: reactivationError } = await supabase
       .from('subscribers')
@@ -56,26 +60,42 @@ export async function POST(request: Request) {
 
     if (reactivationError) {
       console.error('Reactivation error:', reactivationError);
-      return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 });
+      return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, reactivated: true });
-  }
-
-  // 🔥 4. NEW EMAIL → INSERT
-  const { data, error } = await supabase
-    .from('subscribers')
-    .insert({
+    shouldSendWelcome = true;
+  } 
+  // 4. NEW USER
+  else {
+    const { error } = await supabase.from('subscribers').insert({
       email: normalizedEmail,
       name: name?.trim() || null,
       selected_sports,
       is_active: true,
     });
 
-  if (error) {
-    console.error('Insert error:', error);
-    return NextResponse.json({ error: 'Failed to subscribe' }, { status: 500 });
+    if (error) {
+      console.error('Insert error:', error);
+      return NextResponse.json({ error: 'Failed to subscribe' }, { status: 500 });
+    }
+
+    shouldSendWelcome = true;
   }
 
-  return NextResponse.json({ success: true, data });
+  // SEND WELCOME EMAIL (new or reactivated)
+  if (shouldSendWelcome && process.env.RESEND_API_KEY) {
+    try {
+      await resend.emails.send({
+        from: 'Daily Bets <hello@yourdomain.com>',
+        to: normalizedEmail,
+        subject: 'Welcome to Daily Bets – Your Edge Starts Now',
+        react: WelcomeEmail({ name: name?.trim() || email }),
+      });
+    } catch (e) {
+      console.error('Welcome email failed:', e);
+      // Don’t fail the signup if email fails
+    }
+  }
+
+  return NextResponse.json({ success: true });
 }
