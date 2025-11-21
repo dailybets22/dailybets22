@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     try {
       console.log('Sending welcome email to:', normalizedEmail);
       await resend.emails.send({
-        from: 'Daily Bets <dailybets22@gmail.com>',
+        from: 'Daily Bets <delivered@resend.dev>',
         to: normalizedEmail,
         subject: 'Welcome to Daily Bets – Your Edge Starts Now',
         react: WelcomeEmail({ name: name?.trim() || normalizedEmail }),
