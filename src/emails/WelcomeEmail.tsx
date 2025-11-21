@@ -40,7 +40,7 @@ export default function WelcomeEmail({ name = 'there' }: WelcomeEmailProps) {
           <Container className="max-w-4xl mx-auto px-6 py-12">
             <Section className="text-center">
               <Img
-                src="/bets-logo.png" // Your logo
+                src="https://dailybets22.vercel.app/bets-logo.png" // Your logo
                 width="120"
                 height="120"
                 alt="Daily Bets"

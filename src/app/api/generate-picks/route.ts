@@ -1,106 +1,76 @@
-// src/app/api/generate-picks/route.js
+// src/app/api/generate-picks/route.ts
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { Resend } from 'resend';
+import DailyPicksEmail from '@/emails/DailyPicksEmail'; // ← create this next (I’ll give you)
 
-const BEEHIIV_API_KEY = process.env.BEEHIIV_API_KEY;
-const BEEHIIV_PUBLICATION_ID = process.env.BEEHIIV_PUBLICATION_ID;
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SECRET_KEY!
+);
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 const ODDS_API_KEY = process.env.THE_ODDS_API_KEY;
 
 export async function GET() {
   const globalPicks = await fetchRealPicks();
-
-  const subscribers = await fetchAllBeehiivSubscribers();
-  console.log(`Fetched ${subscribers.length} subscribers from Beehiiv`);
-  let updated = 0;
-
-for (const sub of subscribers) {
-  if (sub.status !== 'active') continue;
-
-  // READ selected_sports — use exact field name from Beehiiv
-  const sportsField = Array.isArray(sub.custom_fields)
-    ? sub.custom_fields.find((f: any) => f.name === 'selected_sports')  // ← change if your field name differs!
-    : null;
-
-  const userSports = (sportsField?.value || '')
-    .split(',')
-    .map((s: string) => s.trim().toLowerCase())
-    .filter(Boolean);
-
-    console.log(`Subscriber ${sub.email} selected sports:`, userSports);
-
-  if (userSports.length === 0) continue;
-
-  // FIX 1: Normalize sport from odds to lowercase for matching
-  const userPicks = globalPicks
-    .filter(p => {
-      const sportLower = p.sport.toLowerCase();  // ← NBA → nba
-      return userSports.includes(sportLower);
-    })
-    .sort((a, b) => parseFloat(b.probability) - parseFloat(a.probability));
-
-    console.log(`Subscriber ${sub.email} has ${userPicks.length} matching picks`);
-
-  // FIX 2: Lower threshold — even 1 pick is better than zero
-  if (userPicks.length === 0) continue;
-
-  // Build final 10 — prioritize best picks
-  const safe = userPicks.filter(p => p.category === 'safe').slice(0, 5);
-  const medium = userPicks.filter(p => p.category === 'medium').slice(0, 4);
-  const risky = userPicks.filter(p => p.category === 'high-risk').slice(0, 3);
-  const topPicks = [...safe, ...medium, ...risky].slice(0, 9);
-
-  console.log(`Subscriber ${sub.email} final picks count before parlay:`, topPicks.length);
-
-  // Always include parlay if we have at least 2 picks
-  const final10 = topPicks;
-  if (topPicks.length >= 2) {
-    final10.push(createParlay(topPicks));
+  if (globalPicks.length === 0) {
+    return NextResponse.json({ error: 'No picks today' }, { status: 500 });
   }
 
-  console.log(`Subscriber ${sub.email} final picks count after parlay:`, final10.length);
+  const { data: subscribers, error } = await supabase
+    .from('subscribers')
+    .select('email, name, selected_sports, is_active_subscriber')
+    .eq('is_active_subscriber', true);
 
-  const html = renderEmailHtml(final10, sub.name || 'Friend');
+  if (error || !subscribers) {
+    return NextResponse.json({ error: 'Failed to fetch subscribers' });
+  }
 
-  console.log(`Generated HTML for ${sub.email}:`, html.slice(0, 100) + '...');
+  let sent = 0;
+  for (const sub of subscribers) {
+    const userSports = sub.selected_sports.map((s: string) => s.toLowerCase());
+    const userPicks = globalPicks
+      .filter(p => userSports.includes(p.sport))
+      .slice(0, 15); // plenty to work with
 
-  // WRITE to Beehiiv — use exact field name
-        try {
-            // Update subscription by ID (PUT /publications/:publicationId/subscriptions/:subscriptionId)
-        console.log(`DEBUG: About to update ${sub.email}, html exists: ${html}, html length: ${html?.length || 0}`);
-        const response = await fetch(`https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions/${sub.id}`, {
-        method: 'PUT',
-        headers: {
-            Authorization: `Bearer ${BEEHIIV_API_KEY}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            custom_fields: [
-            {
-                name: "today_picks_html",
-                value: html
-            }
-            ]
+    if (userPicks.length === 0) continue;
+
+    const safe = userPicks.filter(p => p.category === 'safe').slice(0, 5);
+    const medium = userPicks.filter(p => p.category === 'medium').slice(0, 4);
+    const high = userPicks.filter(p => p.category === 'high-risk').slice(0, 3);
+    const topPicks = [...safe, ...medium, ...high];
+
+    const finalPicks = topPicks.length >= 2
+      ? [...topPicks, createParlay(topPicks)]
+      : topPicks;
+
+    try {
+      await resend.emails.send({
+        from: 'Daily Bets <delivered@resend.dev>',
+        to: sub.email,
+        subject: `Your ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} Picks Are In`,
+        react: DailyPicksEmail({
+          name: sub.name || 'Sharp',
+          picks: finalPicks,
         }),
-        });
-
-    if (response.ok) {
-      updated++;
-      console.log(`SUCCESS → ${sub.email} updated!`);
-    } else {
-      const err = await response.text();
-      console.log(`FAILED → ${sub.email} | ${response.status} | ${err}`);
+      });
+      sent++;
+      console.log(`Sent to ${sub.email}`);
+    } catch (e: any) {
+      console.error(`Failed for ${sub.email}:`, e.message);
     }
-  } catch (e) {
-    const msg = (e as any)?.message ?? String(e);
-    console.log('EXCEPTION →', msg);
+
+    // Stay under Resend 2/sec limit
+    await new Promise(r => setTimeout(r, 600));
   }
-}
 
   return NextResponse.json({
     success: true,
     picksGenerated: globalPicks.length,
-    subscribersUpdated: updated,
+    emailsSent: sent,
+    totalActiveSubs: subscribers.length,
     generatedAt: new Date().toISOString(),
-    message: 'LIVE MODE — Real odds delivered'
   });
 }
 
@@ -160,22 +130,6 @@ async function fetchRealPicks() {
   return unique.sort((a: any, b: any) => parseFloat(b.probability) - parseFloat(a.probability));
 }
 
-// —————— BEEHIIV SUBSCRIBERS ——————
-async function fetchAllBeehiivSubscribers() {
-  const all = [];
-  let page = 1;
-  while (true) {
-    const url = `https://api.beehiiv.com/v2/publications/${BEEHIIV_PUBLICATION_ID}/subscriptions?page=${page}&limit=100&expand=custom_fields`;
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${BEEHIIV_API_KEY}` } });
-    if (!res.ok) break;
-    const json = await res.json();
-    all.push(...(json.data || []));
-    if (!json.pagination?.next_page) break;
-    page++;
-  }
-  return all;
-}
-
 // —————— PARLAY & HTML ——————
 function createParlay(picks: any[]) {
   const legs = picks.slice(0, 3);
@@ -188,8 +142,4 @@ function createParlay(picks: any[]) {
     probability: 'High Reward',
     category: 'parlay'
   };
-}
-
-function renderEmailHtml(picks: any[], name: string) {
-  return `${picks.map((p: any) => `${p.game}: ${p.pick} @ ${p.odds} (${p.probability})`).join('\n')}`;
 }
