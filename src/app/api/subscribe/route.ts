@@ -86,12 +86,13 @@ export async function POST(request: Request) {
   if (shouldSendWelcome && process.env.RESEND_API_KEY) {
     try {
       console.log('Sending welcome email to:', normalizedEmail);
-      await resend.emails.send({
-        from: 'Daily Bets <delivered@resend.dev>',
+      const res = await resend.emails.send({
+        from: 'delivered@resend.dev',
         to: normalizedEmail,
         subject: 'Welcome to Daily Bets – Your Edge Starts Now',
         react: WelcomeEmail({ name: name?.trim() || normalizedEmail }),
       });
+      console.log('Resend response:', res);
     } catch (e) {
       console.error('Welcome email failed:', e);
       // Don’t fail the signup if email fails
