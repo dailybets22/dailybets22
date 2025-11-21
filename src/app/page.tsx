@@ -7,7 +7,6 @@ export default function Home() {
   const [name, setName] = useState("");
   const [selectedSports, setSelectedSports] = useState(['nba', 'nhl']);
   const [loading, setLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSportChange = (sport: string) => {
@@ -21,7 +20,6 @@ export default function Home() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
-    setSuccessMessage(null);
     setErrorMessage(null);
 
     try {
@@ -35,25 +33,19 @@ export default function Home() {
         }),
       });
 
-      const json = await response.json();
+      const data = await response.json();
 
-      if (!response.ok) {
-        setErrorMessage(json?.error || 'Subscription failed');
+      if (!response.ok || data.error) {
+        setErrorMessage(data.error || 'Subscription failed');
         setLoading(false);
         return;
       }
 
-      // SUCCESS — CLEAR FORM
-      setSuccessMessage('Thank you for subscribing!');
-      setEmail("");
-      setName("");
-      setSelectedSports(['nba', 'nhl']);
-
-      setTimeout(() => setSuccessMessage(null), 5000);
+      // REDIRECT TO STRIPE CHECKOUT
+      window.location.href = data.url;
 
     } catch (err) {
-      setErrorMessage('Something went wrong. Please try again.');
-    } finally {
+      setErrorMessage('Network error. Please try again.');
       setLoading(false);
     }
   };
@@ -82,7 +74,6 @@ export default function Home() {
             <div className="mb-12 rounded-2xl bg-white/5 p-8 backdrop-blur-lg">
               <h3 className="mb-6 text-xl font-semibold">Choose Your Sports</h3>
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
-                
                 {/* NBA */}
                 <label className="flex cursor-pointer items-center gap-4 rounded-xl bg-emerald-900/30 p-5 ring-2 ring-emerald-500">
                   <input
@@ -129,7 +120,6 @@ export default function Home() {
               <div className="mb-4">
                 <input
                   type="email"
-                  name="email"
                   placeholder="Enter your email"
                   required
                   value={email}
@@ -141,7 +131,6 @@ export default function Home() {
               <div className="mb-4">
                 <input
                   type="text"
-                  name="name"
                   placeholder="Enter your name (optional)"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -152,16 +141,10 @@ export default function Home() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-lg bg-gradient-to-r from-emerald-500 to-cyan-500 py-5 text-xl font-bold uppercase tracking-wider transition transform hover:from-emerald-400 hover:to-cyan-400 active:scale-95 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                className="w-full rounded-lg bg-gradient-to-r from-emerald-500 to-cyan-500 py-5 text-xl font-bold uppercase tracking-wider transition transform hover:from-emerald-400 hover:to-cyan-400 active:scale-95 disabled:opacity-50"
               >
-                {loading ? 'Subscribing...' : 'Get Your Picks Every Day'}
+                {loading ? 'Processing...' : 'Get Your Picks Every Day'}
               </button>
-
-              {successMessage && (
-                <div className="mt-4 rounded-lg bg-emerald-500/20 px-4 py-3 text-center text-emerald-300">
-                  {successMessage}
-                </div>
-              )}
 
               {errorMessage && (
                 <div className="mt-4 rounded-lg bg-red-500/20 px-4 py-3 text-center text-red-300">
@@ -171,12 +154,11 @@ export default function Home() {
             </form>
 
             <p className="mt-6 mb-6 text-sm text-gray-500">
-              Zero spam. Unsubscribe anytime. Entertainment only. Bet on your own risk. 21+ only.
+              Zero spam. Unsubscribe anytime. Entertainment only. Bet responsibly. 21+ only.
             </p>
           </div>
         </section>
 
-        {/* FOOTER */}
         <footer className="border-t border-white/10 py-12 text-center text-sm text-gray-500">
           <p>Used by 8,200+ sharp bettors • Powered by DraftKings & FanDuel odds • Est. 2025</p>
         </footer>
