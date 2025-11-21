@@ -85,11 +85,12 @@ export async function POST(request: Request) {
   // SEND WELCOME EMAIL (new or reactivated)
   if (shouldSendWelcome && process.env.RESEND_API_KEY) {
     try {
+      console.log('Sending welcome email to:', normalizedEmail);
       await resend.emails.send({
-        from: 'Daily Bets <hello@yourdomain.com>',
+        from: 'Daily Bets <dailybets22@gmail.com>',
         to: normalizedEmail,
         subject: 'Welcome to Daily Bets – Your Edge Starts Now',
-        react: WelcomeEmail({ name: name?.trim() || email }),
+        react: WelcomeEmail({ name: name?.trim() || normalizedEmail }),
       });
     } catch (e) {
       console.error('Welcome email failed:', e);
