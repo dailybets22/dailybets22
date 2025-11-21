@@ -60,16 +60,20 @@ export async function POST(request: Request) {
   }
 
   // 4. CREATE STRIPE CHECKOUT SESSION
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ['card'],
-    mode: 'subscription',
-    customer_email: normalizedEmail,
-    line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
-    success_url: `${process.env.NEXT_PUBLIC_URL || 'https://dailybets22.vercel.app'}/success`,
-    cancel_url: `${process.env.NEXT_PUBLIC_URL || 'https://dailybets22.vercel.app'}/cancel`,
-    metadata: { email: normalizedEmail },
-  });
-
-  // 5. RETURN STRIPE URL → frontend redirects
-  return NextResponse.json({ url: session.url });
+      try{
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        mode: 'subscription',
+        customer_email: normalizedEmail,
+        line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+        success_url: `${process.env.NEXT_PUBLIC_URL || 'https://dailybets22.vercel.app'}/success`,
+        cancel_url: `${process.env.NEXT_PUBLIC_URL || 'https://dailybets22.vercel.app'}/cancel`,
+        metadata: { email: normalizedEmail },
+      });
+      console.log('Stripe session URL:', session.url || 'NO URL GENERATED');
+      return NextResponse.json({ url: session.url });
+    } catch (stripeError: any) {
+      console.error('STRIPE ERROR for', normalizedEmail, ':', stripeError.message);
+      return NextResponse.json({ error: 'Stripe failed: ' + stripeError.message }, { status: 500 });
+    }
 }
